@@ -74,7 +74,7 @@ normAngle θ
 
 -- Calculate A st. m = AA^T
 sqrtMat :: Matrix Double -> Matrix Double
-sqrtMat = tr . chol . sym
+sqrtMat = tr . chol . trustSym
 
 
 
