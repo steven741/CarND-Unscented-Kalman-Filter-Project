@@ -291,5 +291,36 @@ update (Radar rho phi rho' t) kf =
       in
         x : map (x +) sqrtP ++ map (x -) p
 
-    -- Run the sigma points thru the motion model --
-    predictedPoints = map radarModel sigmaPoints
+    -- Run the sigma points thru the radar model --
+    zs = map radarModel sigmaPoints
+
+    -- z(k+1 | k)
+    z' :: Vector Double
+    z' = foldr (\zn z -> z + (wn `scale` zn))
+               (w0 `scale` z0)
+               (tail zs)
+      where
+        z0 = head zs
+        w0 = l / (l+n)
+        wn = 1 / (2 * (l+n))
+
+    -- s(k+1 | k)
+    s' :: Matrix Double
+    s' = s + r
+      where
+        z0 = head zs
+        w0 = l / (l+n)
+        wn = 1 / (2 * (l+n))
+        z0_d  = x0 - x'
+
+        r = (3><3) [std_radr_ ** 2, 0, 0,
+                    0, std_radphi_ ** 2, 0,
+                    0, 0, std_radrd_ ** 2]
+
+        s = foldr (\zn s ->
+                     let
+                       zn_d  = zn - z'
+                     in
+                       s + (wn `scale` asColumn zn_d <> asRow zn_d))
+                  (w0 `scale` asColumn z0_d <> asRow z0_d)
+                  (tail zs)
