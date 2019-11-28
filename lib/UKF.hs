@@ -74,19 +74,18 @@ normAngle θ
 
 -- Calculate A st. m = AA^T
 sqrtMat :: Matrix Double -> Matrix Double
-sqrtMat = tr . chol . trustSym
+sqrtMat = tr . chol . sym
 
 
 
 {- constant turn rate and velocity magnitude (CTRV) motion model.
 
-   x is the state 
-   n is the noise
+   x is the state augmented with the noise vector
    dt is a reasonable time step
  -}
-process :: Vector Double -> Vector Double -> Double -> Vector Double
-process x n dt =
-  x + f + v
+process :: Vector Double -> Double -> Vector Double
+process x dt =
+  (5 |> [px, py, vel, yaw, yaw']) + f + v
   where
     -- State vector components
     px   = x ! 0
@@ -96,8 +95,8 @@ process x n dt =
     yaw' = x ! 4
 
     -- Noise vector components
-    noiseA  = n ! 0
-    noiseY' = n ! 1
+    noiseA  = x ! 5
+    noiseY' = x ! 6
 
     -- State model vector
     f = if abs yaw' > 0.001
@@ -143,7 +142,7 @@ predict t kf =
       (fromIntegral (t - filterTime)) / 1000000.0
 
     -- n is the size of the state space
-    n = 5
+    n = 7
 
     -- l is a tuning parameter that controls the
     -- distance of the points.
@@ -156,16 +155,25 @@ predict t kf =
         x = kf_x kf
         p = kf_p kf
 
-        sqrtP = toColumns $ sqrtMat $ (l+n) `scale` p
+        xAug = 7 |> [x ! 0,
+                     x ! 1,
+                     x ! 2,
+                     x ! 3,
+                     x ! 4,
+                     0,
+                     0]
+        pAug = diagBlock [p, std_a_ ** 2, std_yawdd_ ** 2]
+
+        sqrtP = toColumns $ sqrtMat $ (l+n) `scale` pAug
       in
-        x : map (x +) sqrtP ++ map (x -) sqrtP
+        xAug : map (xAug +) sqrtP ++ map (xAug -) sqrtP
 
     -- Run the sigma points thru the motion model --
     predictedPoints =
       x0 : xs
       where
-        x0 = process (head sigmaPoints) (2 |> [std_a_, std_yawdd_]) dt
-        xs = map (\pnt -> process pnt (2 |> [std_a_ ** 2, std_yawdd_ ** 2]) dt)
+        x0 = process (head sigmaPoints) dt
+        xs = map (\pnt -> process pnt dt)
                  (tail sigmaPoints)
 
     -- x(k+1 | k)
