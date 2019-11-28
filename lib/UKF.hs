@@ -261,6 +261,9 @@ update (Radar rho phi rho' t) kf =
   where
     kf' = predict t kf
 
+    n = 5
+    l = 3 - n
+
     --Calculates the state space point as a radar space point.
     radarModel x =
       let
