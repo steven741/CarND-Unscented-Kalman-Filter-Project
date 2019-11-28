@@ -141,14 +141,13 @@ predict t kf =
     dt =
       (fromIntegral (t - filterTime)) / 1000000.0
 
-    -- n is the size of the state space
+    -- n is the size of the state space with noise components
     n = 7
 
-    -- l is a tuning parameter that controls the
-    -- distance of the points.
+    -- l is a tuning parameter that controls the distance of the points.
     l = 3 - n
 
-    -- Generate a list of sigma points --
+    -- Generate a list of augmented sigma points --
     sigmaPoints :: [Vector Double]
     sigmaPoints =
       let
@@ -234,8 +233,8 @@ update (Laser px py t) kf =
     -- Measurment transition matricies
     h = (2><5) [1, 0, 0, 0, 0,
                 0, 1, 0, 0, 0]
-    r = (2><2) [std_laspx_, 0.00000000,
-                0.00000000, std_laspy_]
+    r = (2><2) [std_laspx_ ** 2, 0.00000000,
+                0.00000000,      std_laspy_ ** 2]
     y = 2 |> [px, py] - (h #> kf_x kf')
 
     -- Kalman Filter Equations
@@ -251,5 +250,43 @@ update (Laser px py t) kf =
 
 
 
+{- For the case of radar measurments we do
+   need to use an unscented transformation as
+   the both the mapping to measurment space is
+   non-linear. This gives us  KF(k+1 | k+1) for
+   the filter
+ -}
 update (Radar rho phi rho' t) kf =
-  kf --skip
+  kf -- skip
+  where
+    kf' = predict t kf
+
+    --Calculates the state space point as a radar space point.
+    radarModel x =
+      let
+        _x  = x ! 0
+        _y  = x ! 1
+        _v  = x ! 2
+        _θ  = x ! 3
+        _vx = _v * (cos _θ)
+        _vy = _v * (sin _θ)
+
+        ρ  = sqrt ((_x ** 2) + (_y ** 2))
+        φ  = atan2 _y _x
+        ρ' = (_x*_vx + _y*_vy) / ρ
+      in
+        3 |> [ρ, φ, ρ']
+
+    -- Generate a list of sigma points --
+    sigmaPoints :: [Vector Double]
+    sigmaPoints =
+      let
+        x = kf_x kf
+        p = kf_p kf
+
+        sqrtP = toColumns $ sqrtMat $ (l+n) `scale` p
+      in
+        x : map (x +) sqrtP ++ map (x -) p
+
+    -- Run the sigma points thru the motion model --
+    predictedPoints = map radarModel sigmaPoints
