@@ -289,7 +289,7 @@ update (Radar rho phi rho' t) kf =
 
         sqrtP = toColumns $ sqrtMat $ (l+n) `scale` p
       in
-        x : map (x +) sqrtP ++ map (x -) p
+        x : map (x +) sqrtP ++ map (x -) sqrtP
 
     -- Run the sigma points thru the radar model --
     zs = map radarModel sigmaPoints
@@ -311,7 +311,7 @@ update (Radar rho phi rho' t) kf =
         z0 = head zs
         w0 = l / (l+n)
         wn = 1 / (2 * (l+n))
-        z0_d  = x0 - x'
+        z0_d  = z0 - z'
 
         r = (3><3) [std_radr_ ** 2, 0, 0,
                     0, std_radphi_ ** 2, 0,
